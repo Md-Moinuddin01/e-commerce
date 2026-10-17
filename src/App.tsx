@@ -1,7 +1,12 @@
 import {
+  ArrowLeft,
+  ArrowRight,
   Bell,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Compass,
   Copy,
   CreditCard,
   ExternalLink,
@@ -9,8 +14,12 @@ import {
   Home,
   Landmark,
   LogOut,
+  MapPin,
   Menu,
   Minus,
+  Monitor,
+  Moon,
+  Navigation,
   PackageCheck,
   Plus,
   QrCode,
@@ -20,6 +29,7 @@ import {
   ShoppingCart,
   Smartphone,
   Star,
+  Sun,
   Trash2,
   Truck,
   User,
@@ -29,7 +39,11 @@ import {
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import QRCode from 'qrcode';
 import editorialModel from './assets/editorial-model.png';
+import editorialTrench from './assets/editorial-model-trench.jpg';
+import editorialReference from './assets/model-reference.jpg';
 import { createOrderId, formatMoney, getDeliveryWindow, requestWalletConnection } from './commerce-utils.js';
+
+type AppearanceMode = 'light' | 'dark' | 'system';
 
 type Product = {
   id: string;
@@ -59,6 +73,16 @@ type CartItem = {
 type UserProfile = {
   name: string;
   email: string;
+  phone?: string;
+  secondaryPhone?: string;
+  address?: string;
+  city?: string;
+  region?: string;
+  postal?: string;
+  landmark?: string;
+  lat?: number;
+  lng?: number;
+  savedPaymentMethod?: 'upi' | 'netbanking' | 'card' | 'wallet';
 };
 
 type WalletProfile = {
@@ -71,10 +95,14 @@ type CheckoutForm = {
   fullName: string;
   email: string;
   phone: string;
+  secondaryPhone?: string;
   address: string;
   city: string;
   region: string;
   postal: string;
+  landmark?: string;
+  lat?: number;
+  lng?: number;
 };
 
 type OrderRecord = {
@@ -83,7 +111,81 @@ type OrderRecord = {
   delivery: string;
   paymentMethod?: string;
   reference?: string;
+  deliveryAddress?: string;
+  coordinates?: { lat: number; lng: number };
+  itemsCount?: number;
+  date?: string;
 };
+
+const OFFICIAL_WALLET = {
+  address: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+  ens: 'offthread-treasury.eth',
+  network: 'Ethereum Mainnet (Chain 1)',
+  explorer: 'https://etherscan.io/address/0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+  label: 'Verified Merchant Treasury Vault',
+};
+
+const UPI_ID = '6268385870@ybl';
+
+const POPULAR_BANKS = [
+  { id: 'sbi', name: 'State Bank of India', short: 'SBI', icon: '🏛️' },
+  { id: 'hdfc', name: 'HDFC Bank', short: 'HDFC', icon: '🏦' },
+  { id: 'icici', name: 'ICICI Bank', short: 'ICICI', icon: '🏦' },
+  { id: 'axis', name: 'Axis Bank', short: 'Axis', icon: '💳' },
+  { id: 'kotak', name: 'Kotak Mahindra Bank', short: 'Kotak', icon: '🏦' },
+  { id: 'pnb', name: 'Punjab National Bank', short: 'PNB', icon: '🏛️' },
+];
+
+const OTHER_BANKS = [
+  'Bank of Baroda',
+  'Canara Bank',
+  'Union Bank of India',
+  'IndusInd Bank',
+  'Federal Bank',
+  'IDBI Bank',
+  'Yes Bank',
+  'Bank of India',
+  'Indian Bank',
+  'Central Bank of India',
+  'Indian Overseas Bank',
+  'UCO Bank',
+  'RBL Bank',
+  'IDFC First Bank',
+  'South Indian Bank',
+  'Jammu & Kashmir Bank',
+  'Bandhan Bank',
+  'AU Small Finance Bank',
+];
+
+const HERO_SLIDES = [
+  {
+    id: 'slide-1',
+    image: editorialModel,
+    subtitle: 'Hero drop 01 · Cobalt Utility',
+    title: 'Cobalt Streetwear Form',
+    description: 'Technical double-fleece structured hoodie with clean seam ergonomics and hidden zip pockets.',
+    productId: 'cobalt-hoodie',
+    badge: 'Hero Drop',
+  },
+  {
+    id: 'slide-2',
+    image: editorialTrench,
+    subtitle: 'Hero drop 02 · Architectural Minimal',
+    title: 'Monochrome Wool Trench',
+    description: 'Heavyweight double-breasted tailored trench coat crafted from virgin brushed wool with silk interior lining.',
+    productId: 'monochrome-wool-overcoat',
+    badge: 'New Release',
+  },
+  {
+    id: 'slide-3',
+    image: editorialReference,
+    subtitle: 'Hero drop 03 · Avant-Garde Civic',
+    title: 'Ribbed Atelier Cardigan',
+    description: 'Oversized chunky rib-knit spun with heritage merino fibers, styled for elevated urban lookbooks.',
+    productId: 'atelier-heavy-knit',
+    badge: 'Limited Drop',
+  },
+];
 
 const products: Product[] = [
   {
@@ -211,7 +313,7 @@ const products: Product[] = [
     originalPrice: 260,
     rating: 4.9,
     reviewCount: 342,
-    image: 'https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=900&q=80',
+    image: editorialTrench,
     colors: ['Obsidian', 'Camel', 'Fog'],
     sizes: ['S', 'M', 'L', 'XL'],
     badge: 'Hero drop',
@@ -289,46 +391,6 @@ const products: Product[] = [
 ];
 
 const tabs = ['Men', 'Women', 'Children', 'New offers'] as const;
-const UPI_ID = '6268385870@ybl';
-const POPULAR_BANKS = [
-  { id: 'sbi', name: 'State Bank of India', short: 'SBI', icon: '🏛️' },
-  { id: 'hdfc', name: 'HDFC Bank', short: 'HDFC', icon: '🏦' },
-  { id: 'icici', name: 'ICICI Bank', short: 'ICICI', icon: '🏦' },
-  { id: 'axis', name: 'Axis Bank', short: 'Axis', icon: '💳' },
-  { id: 'kotak', name: 'Kotak Mahindra Bank', short: 'Kotak', icon: '🏦' },
-  { id: 'pnb', name: 'Punjab National Bank', short: 'PNB', icon: '🏛️' },
-];
-
-const OTHER_BANKS = [
-  'Bank of Baroda',
-  'Canara Bank',
-  'Union Bank of India',
-  'IndusInd Bank',
-  'Federal Bank',
-  'IDBI Bank',
-  'Yes Bank',
-  'Bank of India',
-  'Indian Bank',
-  'Central Bank of India',
-  'Indian Overseas Bank',
-  'UCO Bank',
-  'RBL Bank',
-  'IDFC First Bank',
-  'South Indian Bank',
-  'Jammu & Kashmir Bank',
-  'Bandhan Bank',
-  'AU Small Finance Bank',
-];
-
-const defaultCheckout: CheckoutForm = {
-  fullName: '',
-  email: '',
-  phone: '',
-  address: '',
-  city: '',
-  region: '',
-  postal: '',
-};
 
 function useStoredState<T>(key: string, initialValue: T) {
   const [value, setValue] = useState<T>(() => {
@@ -352,11 +414,20 @@ function shortAddress(address: string) {
 }
 
 export default function App() {
+  const [appearance, setAppearance] = useStoredState<AppearanceMode>('offthread-theme', 'system');
   const [cart, setCart] = useStoredState<CartItem[]>('offthread-cart', []);
   const [wishlist, setWishlist] = useStoredState<string[]>('offthread-wishlist', []);
-  const [user, setUser] = useStoredState<UserProfile | null>('offthread-user', null);
+  const [user, setUser] = useStoredState<UserProfile | null>('offthread-user-profile', null);
   const [wallet, setWallet] = useStoredState<WalletProfile | null>('offthread-wallet', null);
   const [orders, setOrders] = useStoredState<OrderRecord[]>('offthread-orders', []);
+
+  const [currentView, setCurrentView] = useState<'home' | 'checkout' | 'profile'>(() => {
+    const hash = window.location.hash.toLowerCase();
+    if (hash === '#checkout') return 'checkout';
+    if (hash === '#profile') return 'profile';
+    return 'home';
+  });
+
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>('Men');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('featured');
@@ -370,7 +441,6 @@ export default function App() {
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'netbanking' | 'card' | 'wallet'>('upi');
   const [selectedBank, setSelectedBank] = useState('sbi');
   const [otherBank, setOtherBank] = useState('');
-  const [upiCopied, setUpiCopied] = useState(false);
   const [upiUtr, setUpiUtr] = useState('');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const [isSimulatingRedirect, setIsSimulatingRedirect] = useState(false);
@@ -378,19 +448,101 @@ export default function App() {
   const [upiTimer, setUpiTimer] = useState(300);
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
-  const [checkout, setCheckout] = useState(defaultCheckout);
+
+  // Delivery form state synced with user profile
+  const [checkout, setCheckout] = useState<CheckoutForm>(() => ({
+    fullName: user?.name || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    secondaryPhone: user?.secondaryPhone || '',
+    address: user?.address || '',
+    city: user?.city || '',
+    region: user?.region || '',
+    postal: user?.postal || '',
+    landmark: user?.landmark || '',
+    lat: user?.lat || 28.6139,
+    lng: user?.lng || 77.209,
+  }));
+
   const [checkoutMessage, setCheckoutMessage] = useState('');
   const [lastOrder, setLastOrder] = useState<OrderRecord | null>(null);
 
-  const submitAuth = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const name = String(form.get('name') || '').trim();
-    const email = String(form.get('email') || '').trim();
-    const password = String(form.get('password') || '');
-    if (!email || password.length < 6) return;
-    setUser({ name: name || email.split('@')[0] || 'Member', email });
-    setAuthOpen(false);
+  // Apply Appearance Theme
+  useEffect(() => {
+    const root = document.documentElement;
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+
+    const updateTheme = () => {
+      const isDark = appearance === 'dark' || (appearance === 'system' && media.matches);
+      if (isDark) {
+        root.setAttribute('data-theme', 'dark');
+      } else {
+        root.removeAttribute('data-theme');
+      }
+    };
+
+    updateTheme();
+    media.addEventListener('change', updateTheme);
+    return () => media.removeEventListener('change', updateTheme);
+  }, [appearance]);
+
+  // Sync hash routing
+  useEffect(() => {
+    const handleHash = () => {
+      const hash = window.location.hash.toLowerCase();
+      if (hash === '#checkout') setCurrentView('checkout');
+      else if (hash === '#profile') setCurrentView('profile');
+      else setCurrentView('home');
+    };
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
+
+  const navigateTo = (view: 'home' | 'checkout' | 'profile') => {
+    setCurrentView(view);
+    window.location.hash = view === 'home' ? '#home' : `#${view}`;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // UPI 5-minute countdown timer effect
+  useEffect(() => {
+    if (paymentMethod !== 'upi') return;
+    const interval = setInterval(() => {
+      setUpiTimer((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [paymentMethod]);
+
+  const resetUpiTimer = () => {
+    setUpiTimer(300);
+  };
+
+  const formatTimer = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const connectSpecificWallet = async (providerType: 'metamask' | 'coinbase' | 'trust' | 'demo') => {
+    setWalletMessage('');
+    setConnectingProvider(providerType);
+    try {
+      const connected = await requestWalletConnection(providerType);
+      setWallet(connected as WalletProfile);
+      setWalletMessage(`Connected via ${connected.walletType || 'Wallet'}! 3% discount active.`);
+      setWalletModalOpen(false);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'REJECTED') {
+        setWalletMessage('Wallet connection request was rejected.');
+      } else {
+        const demo = await requestWalletConnection('demo');
+        setWallet(demo as WalletProfile);
+        setWalletMessage(`Connected via ${providerType.toUpperCase()} (Simulated). 3% discount active.`);
+        setWalletModalOpen(false);
+      }
+    } finally {
+      setConnectingProvider(null);
+    }
   };
 
   const searchedProducts = useMemo(() => {
@@ -412,10 +564,6 @@ export default function App() {
     return list.sort((a, b) => b.reviewCount - a.reviewCount);
   }, [activeTab, query, sort]);
 
-  const newArrivals = searchedProducts.filter((product) => product.collection === 'New arrival');
-  const popular = searchedProducts.filter((product) => product.collection === 'Popular');
-  const visibleFallback = searchedProducts.length ? searchedProducts : products;
-
   const cartLines = cart
     .map((item) => ({
       item,
@@ -430,6 +578,51 @@ export default function App() {
   const shipping = subtotal === 0 || subtotal > 250 ? 0 : shippingSpeed === 'express' ? 18 : 8;
   const tax = Math.max(subtotal - promoDiscount - walletDiscount, 0) * 0.082;
   const total = Math.max(subtotal - promoDiscount - walletDiscount + shipping + tax, 0);
+
+  const inrAmount = useMemo(() => Math.round(total * 85), [total]);
+
+  // UPI deep-link URI (URI contains the recipient UPI ID, but the UI text string is hidden)
+  const upiUri = useMemo(() => {
+    const amountVal = inrAmount > 0 ? inrAmount : 1;
+    return `upi://pay?pa=${UPI_ID}&pn=off-thread%20Store&am=${amountVal}&cu=INR&tn=Order%20Payment`;
+  }, [inrAmount]);
+
+  useEffect(() => {
+    let active = true;
+    QRCode.toDataURL(upiUri, {
+      width: 260,
+      margin: 2,
+      color: {
+        dark: '#0b0d10',
+        light: '#ffffff',
+      },
+    })
+      .then((url) => {
+        if (active) setQrCodeDataUrl(url);
+      })
+      .catch(() => {
+        if (active) {
+          setQrCodeDataUrl(
+            `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=${encodeURIComponent(upiUri)}`,
+          );
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [upiUri]);
+
+  const handleUpiDirectRedirect = (scheme?: 'phonepe' | 'gpay' | 'paytm') => {
+    let url = upiUri;
+    if (scheme === 'phonepe') {
+      url = `phonepe://pay?pa=${UPI_ID}&pn=off-thread%20Store&am=${inrAmount}&cu=INR&tn=Order%20Payment`;
+    } else if (scheme === 'gpay') {
+      url = `tez://upi/pay?pa=${UPI_ID}&pn=off-thread%20Store&am=${inrAmount}&cu=INR&tn=Order%20Payment`;
+    } else if (scheme === 'paytm') {
+      url = `paytmmp://pay?pa=${UPI_ID}&pn=off-thread%20Store&am=${inrAmount}&cu=INR&tn=Order%20Payment`;
+    }
+    window.location.href = url;
+  };
 
   const addToCart = (product: Product, quantity = 1, color = product.colors[0], size = product.sizes[0]) => {
     setCart((current) => {
@@ -474,99 +667,45 @@ export default function App() {
     );
   };
 
-  const inrAmount = useMemo(() => Math.round(total * 85), [total]);
-
-  // UPI 5-minute countdown timer effect
-  useEffect(() => {
-    if (paymentMethod !== 'upi') return;
-    const interval = setInterval(() => {
-      setUpiTimer((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [paymentMethod]);
-
-  const resetUpiTimer = () => {
-    setUpiTimer(300);
-  };
-
-  const formatTimer = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const connectSpecificWallet = async (providerType: 'metamask' | 'coinbase' | 'trust' | 'demo') => {
-    setWalletMessage('');
-    setConnectingProvider(providerType);
-    try {
-      const connected = await requestWalletConnection(providerType);
-      setWallet(connected as WalletProfile);
-      setWalletMessage(`Connected via ${connected.walletType || 'Wallet'}! 3% discount active.`);
-      setWalletModalOpen(false);
-    } catch (error) {
-      if (error instanceof Error && error.message === 'REJECTED') {
-        setWalletMessage('Wallet connection request was rejected.');
-      } else {
-        const demo = await requestWalletConnection('demo');
-        setWallet(demo as WalletProfile);
-        setWalletMessage(`Connected via ${providerType.toUpperCase()} (Demo Mode). 3% discount active.`);
-        setWalletModalOpen(false);
-      }
-    } finally {
-      setConnectingProvider(null);
-    }
-  };
-
-  const connectWallet = () => {
-    setWalletModalOpen(true);
-  };
-
-  const upiUri = useMemo(() => {
-    const amountVal = inrAmount > 0 ? inrAmount : 1;
-    return `upi://pay?pa=${UPI_ID}&pn=off-thread%20Store&am=${amountVal}&cu=INR&tn=Order%20Payment`;
-  }, [inrAmount]);
-
-  useEffect(() => {
-    let active = true;
-    QRCode.toDataURL(upiUri, {
-      width: 260,
-      margin: 2,
-      color: {
-        dark: '#0b0d10',
-        light: '#ffffff',
-      },
-    })
-      .then((url) => {
-        if (active) setQrCodeDataUrl(url);
-      })
-      .catch(() => {
-        if (active) {
-          setQrCodeDataUrl(
-            `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=${encodeURIComponent(upiUri)}`,
-          );
-        }
-      });
-    return () => {
-      active = false;
+  const submitAuth = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const name = String(form.get('name') || '').trim();
+    const email = String(form.get('email') || '').trim();
+    const password = String(form.get('password') || '');
+    if (!email || password.length < 6) return;
+    const profileData: UserProfile = {
+      name: name || email.split('@')[0] || 'Member',
+      email,
+      phone: checkout.phone,
+      address: checkout.address,
+      city: checkout.city,
+      region: checkout.region,
+      postal: checkout.postal,
+      landmark: checkout.landmark,
+      lat: checkout.lat,
+      lng: checkout.lng,
     };
-  }, [upiUri]);
-
-  const copyUpiId = () => {
-    navigator.clipboard.writeText(UPI_ID);
-    setUpiCopied(true);
-    setTimeout(() => setUpiCopied(false), 2200);
+    setUser(profileData);
+    setAuthOpen(false);
   };
 
-  const handleUpiDirectRedirect = (scheme?: 'phonepe' | 'gpay' | 'paytm') => {
-    let url = upiUri;
-    if (scheme === 'phonepe') {
-      url = `phonepe://pay?pa=${UPI_ID}&pn=off-thread%20Store&am=${inrAmount}&cu=INR&tn=Order%20Payment`;
-    } else if (scheme === 'gpay') {
-      url = `tez://upi/pay?pa=${UPI_ID}&pn=off-thread%20Store&am=${inrAmount}&cu=INR&tn=Order%20Payment`;
-    } else if (scheme === 'paytm') {
-      url = `paytmmp://pay?pa=${UPI_ID}&pn=off-thread%20Store&am=${inrAmount}&cu=INR&tn=Order%20Payment`;
-    }
-    window.location.href = url;
+  const saveProfileInfo = (updatedProfile: UserProfile) => {
+    setUser(updatedProfile);
+    setCheckout((prev) => ({
+      ...prev,
+      fullName: updatedProfile.name,
+      email: updatedProfile.email,
+      phone: updatedProfile.phone || prev.phone,
+      secondaryPhone: updatedProfile.secondaryPhone || prev.secondaryPhone,
+      address: updatedProfile.address || prev.address,
+      city: updatedProfile.city || prev.city,
+      region: updatedProfile.region || prev.region,
+      postal: updatedProfile.postal || prev.postal,
+      landmark: updatedProfile.landmark || prev.landmark,
+      lat: updatedProfile.lat || prev.lat,
+      lng: updatedProfile.lng || prev.lng,
+    }));
   };
 
   const placeOrder = (event: FormEvent<HTMLFormElement>) => {
@@ -579,7 +718,19 @@ export default function App() {
     }
     if (!user && !wallet) {
       if (checkout.fullName.trim() && checkout.email.trim()) {
-        setUser({ name: checkout.fullName.trim(), email: checkout.email.trim() });
+        const newUser: UserProfile = {
+          name: checkout.fullName.trim(),
+          email: checkout.email.trim(),
+          phone: checkout.phone.trim(),
+          address: checkout.address.trim(),
+          city: checkout.city.trim(),
+          region: checkout.region.trim(),
+          postal: checkout.postal.trim(),
+          landmark: checkout.landmark,
+          lat: checkout.lat,
+          lng: checkout.lng,
+        };
+        setUser(newUser);
       } else {
         setCheckoutMessage('Please enter your full name and email to place the order.');
         return;
@@ -589,8 +740,8 @@ export default function App() {
       setCheckoutMessage('Connect your wallet before wallet payment.');
       return;
     }
-    if (!Object.values(checkout).every((value) => value.trim().length > 1)) {
-      setCheckoutMessage('Please complete all delivery details.');
+    if (!checkout.fullName.trim() || !checkout.address.trim() || !checkout.city.trim() || !checkout.phone.trim()) {
+      setCheckoutMessage('Please complete the mandatory delivery details.');
       return;
     }
 
@@ -598,17 +749,16 @@ export default function App() {
     let refLabel = '';
 
     if (paymentMethod === 'upi') {
-      methodLabel = `UPI (${UPI_ID})`;
+      methodLabel = 'UPI Express Transfer';
       refLabel = upiUtr.trim() ? `UTR: ${upiUtr.trim()}` : `Ref: UPI-${Math.floor(100000000000 + Math.random() * 900000000000)}`;
     } else if (paymentMethod === 'netbanking') {
       const bankName =
         selectedBank === 'other'
-          ? (otherBank || 'Selected Bank')
+          ? otherBank || 'Selected Bank'
           : POPULAR_BANKS.find((b) => b.id === selectedBank)?.name || 'Net Banking';
       methodLabel = `Net Banking (${bankName})`;
       refLabel = `Bank Ref: NB-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
-      // Simulate NetBanking gateway redirection
       setIsSimulatingRedirect(true);
       setRedirectBankName(bankName);
       setTimeout(() => {
@@ -619,6 +769,10 @@ export default function App() {
           delivery: getDeliveryWindow(shippingSpeed),
           paymentMethod: methodLabel,
           reference: refLabel,
+          deliveryAddress: `${checkout.address}, ${checkout.city}, ${checkout.region} ${checkout.postal}`,
+          coordinates: checkout.lat && checkout.lng ? { lat: checkout.lat, lng: checkout.lng } : undefined,
+          itemsCount: itemCount,
+          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         };
         setOrders((current) => [order, ...current]);
         setLastOrder(order);
@@ -629,6 +783,7 @@ export default function App() {
       return;
     } else if (paymentMethod === 'wallet') {
       methodLabel = `Web3 Wallet (${shortAddress(wallet?.address || '')})`;
+      refLabel = `Vault: ${OFFICIAL_WALLET.ens}`;
     }
 
     const order: OrderRecord = {
@@ -637,6 +792,10 @@ export default function App() {
       delivery: getDeliveryWindow(shippingSpeed),
       paymentMethod: methodLabel,
       reference: refLabel,
+      deliveryAddress: `${checkout.address}, ${checkout.city}, ${checkout.region} ${checkout.postal}`,
+      coordinates: checkout.lat && checkout.lng ? { lat: checkout.lat, lng: checkout.lng } : undefined,
+      itemsCount: itemCount,
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
     };
     setOrders((current) => [order, ...current]);
     setLastOrder(order);
@@ -645,43 +804,74 @@ export default function App() {
     setUpiUtr('');
   };
 
-  const fillFromAccount = () => {
-    if (!user) return;
-    setCheckout((current) => ({
-      ...current,
-      fullName: current.fullName || user.name,
-      email: current.email || user.email,
-    }));
-  };
-
   return (
     <div className="app-shell">
+      {/* Site Header */}
       <header className="site-header">
         <div className="nav-bar">
-          <button className="icon-button menu-button" aria-label="Menu">
+          <button className="icon-button menu-button" aria-label="Menu" onClick={() => navigateTo('home')}>
             <Menu size={20} aria-hidden="true" />
           </button>
 
-          <a className="brand" href="#home" aria-label="off-thread home">
+          <button className="brand-logo-btn" onClick={() => navigateTo('home')} aria-label="off-thread home">
             off-thread
-          </a>
+          </button>
 
           <nav className="desktop-links" aria-label="Primary navigation">
-            {tabs.map((tab) => (
-              <button key={tab} className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>
-                {tab}
-              </button>
-            ))}
-            <a href="#checkout">Checkout</a>
+            <button className={currentView === 'home' && activeTab === 'Men' ? 'active' : ''} onClick={() => { navigateTo('home'); setActiveTab('Men'); }}>
+              Men
+            </button>
+            <button className={currentView === 'home' && activeTab === 'Women' ? 'active' : ''} onClick={() => { navigateTo('home'); setActiveTab('Women'); }}>
+              Women
+            </button>
+            <button className={currentView === 'home' && activeTab === 'Children' ? 'active' : ''} onClick={() => { navigateTo('home'); setActiveTab('Children'); }}>
+              Children
+            </button>
+            <button className={currentView === 'home' && activeTab === 'New offers' ? 'active' : ''} onClick={() => { navigateTo('home'); setActiveTab('New offers'); }}>
+              Offers
+            </button>
+            <button className={currentView === 'checkout' ? 'active highlight' : ''} onClick={() => navigateTo('checkout')}>
+              Checkout
+            </button>
+            <button className={currentView === 'profile' ? 'active' : ''} onClick={() => navigateTo('profile')}>
+              Profile
+            </button>
           </nav>
 
           <div className="header-tools">
-            <button className="icon-button" aria-label="Search" onClick={() => document.getElementById('productSearch')?.focus()}>
+            {/* Appearance Toggle */}
+            <div className="theme-switcher-pill" aria-label="Theme mode switcher">
+              <button
+                className={appearance === 'light' ? 'theme-btn active' : 'theme-btn'}
+                onClick={() => setAppearance('light')}
+                title="Light Mode"
+              >
+                <Sun size={15} />
+              </button>
+              <button
+                className={appearance === 'dark' ? 'theme-btn active' : 'theme-btn'}
+                onClick={() => setAppearance('dark')}
+                title="Dark Mode"
+              >
+                <Moon size={15} />
+              </button>
+              <button
+                className={appearance === 'system' ? 'theme-btn active' : 'theme-btn'}
+                onClick={() => setAppearance('system')}
+                title="System Mode"
+              >
+                <Monitor size={15} />
+              </button>
+            </div>
+
+            <button className="icon-button" aria-label="Search" onClick={() => { navigateTo('home'); setTimeout(() => document.getElementById('productSearch')?.focus(), 100); }}>
               <Search size={19} aria-hidden="true" />
             </button>
-            <button className="icon-button" aria-label="Notifications">
-              <Bell size={19} aria-hidden="true" />
+
+            <button className="icon-button" aria-label="User Profile" onClick={() => navigateTo('profile')}>
+              <User size={19} aria-hidden="true" />
             </button>
+
             <button className="icon-button count-button" aria-label="Open cart" onClick={() => setCartOpen(true)}>
               <ShoppingCart size={19} aria-hidden="true" />
               <span>{itemCount}</span>
@@ -689,540 +879,183 @@ export default function App() {
           </div>
         </div>
 
-        <div className="mobile-tabs" aria-label="Shop categories">
-          {tabs.map((tab) => (
-            <button key={tab} className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>
-              {tab}
-            </button>
-          ))}
-        </div>
-      </header>
-
-      <main id="home">
-        <section className="editorial-hero">
-          <img src={editorialModel} alt="Fashion model wearing cobalt streetwear" />
-          <div className="hero-content">
-            <span>Luxurious</span>
-            <h1>Stylish Life</h1>
-            <p>All time best offers</p>
-          </div>
-          <div className="hero-side-note">Celebrate individuality with unique outfits</div>
-          <div className="hero-cta">
-            <button className="dark-button" onClick={() => addToCart(products[0])}>
-              <ShoppingBag size={17} aria-hidden="true" />
-              Shop now
-            </button>
-            <button className="light-button" onClick={connectWallet}>
-              <Wallet size={17} aria-hidden="true" />
-              Wallet deal
-            </button>
-          </div>
-        </section>
-
-        <section className="store-controls">
-          <label className="search-panel">
-            <Search size={18} aria-hidden="true" />
-            <input
-              id="productSearch"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search hoodies, fleece, shells"
-            />
-          </label>
-
-          <label className="sort-panel">
-            <span>Sort</span>
-            <select value={sort} onChange={(event) => setSort(event.target.value)}>
-              <option value="featured">Featured</option>
-              <option value="rating">Rating</option>
-              <option value="price-low">Price low</option>
-              <option value="price-high">Price high</option>
-            </select>
-            <ChevronDown size={17} aria-hidden="true" />
-          </label>
-        </section>
-
-        <ProductShelf
-          title="New arrival"
-          products={newArrivals.length ? newArrivals : visibleFallback.slice(0, 3)}
-          wishlist={wishlist}
-          onAdd={addToCart}
-          onSave={toggleWishlist}
-          onView={setSelectedProduct}
-        />
-
-        <section className="style-statement">
-          <h2>Here every click is a step towards a more stylish you.</h2>
-          <div className="statement-grid">
-            {products.slice(0, 2).map((product) => (
-              <button key={product.id} className="statement-card" onClick={() => setSelectedProduct(product)}>
-                <img src={product.image} alt={product.name} />
-                <span>{product.name}</span>
+        {currentView === 'home' ? (
+          <div className="mobile-tabs" aria-label="Shop categories">
+            {tabs.map((tab) => (
+              <button key={tab} className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>
+                {tab}
               </button>
             ))}
           </div>
-        </section>
+        ) : null}
+      </header>
 
-        <ProductShelf
-          title="Popular"
-          products={popular.length ? popular : visibleFallback.slice(2)}
-          wishlist={wishlist}
-          onAdd={addToCart}
-          onSave={toggleWishlist}
-          onView={setSelectedProduct}
-        />
+      {/* Main Content Router */}
+      {currentView === 'home' ? (
+        <main id="home">
+          {/* Animated Hero Carousel featuring the SAME face model */}
+          <HeroCarousel
+            slides={HERO_SLIDES}
+            products={products}
+            onAddToCart={addToCart}
+            onSelectProduct={setSelectedProduct}
+            onConnectWallet={() => setWalletModalOpen(true)}
+          />
 
-        <section className="account-wallet-strip">
-          <div>
-            <User size={21} aria-hidden="true" />
-            <strong>{user ? user.name : 'Profile'}</strong>
-            <span>{user ? user.email : 'Sign in for saved orders'}</span>
-          </div>
-          <button className="light-button" onClick={() => setAuthOpen(true)}>
-            {user ? 'Account' : 'Sign in'}
-          </button>
-          <div>
-            <Wallet size={21} aria-hidden="true" />
-            <strong>{wallet ? shortAddress(wallet.address) : 'Wallet'}</strong>
-            <span>{wallet ? '3% discount active' : 'Connect for wallet checkout'}</span>
-          </div>
-          <button className="dark-button" onClick={wallet ? () => setWallet(null) : connectWallet}>
-            {wallet ? 'Disconnect' : 'Connect'}
-          </button>
-        </section>
-
-        <section className="checkout-section" id="checkout">
-          <div className="checkout-copy">
-            <span>Secure checkout</span>
-            <h2>Complete the look.</h2>
-            <p>{orders[0] ? `Last order ${orders[0].id} · ${formatMoney(orders[0].total)}` : 'Curated pieces ship with tracked delivery.'}</p>
-          </div>
-
-          <form className="checkout-form" onSubmit={placeOrder}>
-            <div className="form-topline">
-              <h3>Delivery</h3>
-              {user ? (
-                <button type="button" className="text-button" onClick={fillFromAccount}>
-                  Use account
-                </button>
-              ) : (
-                <button type="button" className="text-button" onClick={() => setAuthOpen(true)}>
-                  Sign in
-                </button>
-              )}
-            </div>
-
-            <div className="form-grid">
-              <label>
-                Full name
-                <input value={checkout.fullName} onChange={(event) => setCheckout({ ...checkout, fullName: event.target.value })} />
-              </label>
-              <label>
-                Email
-                <input type="email" value={checkout.email} onChange={(event) => setCheckout({ ...checkout, email: event.target.value })} />
-              </label>
-              <label>
-                Phone
-                <input value={checkout.phone} onChange={(event) => setCheckout({ ...checkout, phone: event.target.value })} />
-              </label>
-              <label>
-                Postal
-                <input value={checkout.postal} onChange={(event) => setCheckout({ ...checkout, postal: event.target.value })} />
-              </label>
-              <label className="wide-field">
-                Address
-                <input value={checkout.address} onChange={(event) => setCheckout({ ...checkout, address: event.target.value })} />
-              </label>
-              <label>
-                City
-                <input value={checkout.city} onChange={(event) => setCheckout({ ...checkout, city: event.target.value })} />
-              </label>
-              <label>
-                Region
-                <input value={checkout.region} onChange={(event) => setCheckout({ ...checkout, region: event.target.value })} />
-              </label>
-            </div>
-
-            <div className="choice-grid">
-              <button
-                type="button"
-                className={shippingSpeed === 'standard' ? 'choice active' : 'choice'}
-                onClick={() => setShippingSpeed('standard')}
-              >
-                <Truck size={19} aria-hidden="true" />
-                <span>Standard</span>
-                <small>{getDeliveryWindow('standard')}</small>
-              </button>
-              <button
-                type="button"
-                className={shippingSpeed === 'express' ? 'choice active' : 'choice'}
-                onClick={() => setShippingSpeed('express')}
-              >
-                <PackageCheck size={19} aria-hidden="true" />
-                <span>Express</span>
-                <small>{getDeliveryWindow('express')}</small>
-              </button>
-            </div>
-
-            <div className="payment-options-section">
-              <span className="payment-section-title">Payment Method</span>
-              <div className="payment-row">
-                <button
-                  type="button"
-                  className={paymentMethod === 'upi' ? 'payment active' : 'payment'}
-                  onClick={() => setPaymentMethod('upi')}
-                >
-                  <Smartphone size={18} aria-hidden="true" />
-                  <span>UPI & QR</span>
-                  <span className="badge-pill">Instant</span>
-                </button>
-                <button
-                  type="button"
-                  className={paymentMethod === 'netbanking' ? 'payment active' : 'payment'}
-                  onClick={() => setPaymentMethod('netbanking')}
-                >
-                  <Landmark size={18} aria-hidden="true" />
-                  <span>Net Banking</span>
-                </button>
-                <button
-                  type="button"
-                  className={paymentMethod === 'card' ? 'payment active' : 'payment'}
-                  onClick={() => setPaymentMethod('card')}
-                >
-                  <CreditCard size={18} aria-hidden="true" />
-                  <span>Card</span>
-                </button>
-                <button
-                  type="button"
-                  className={paymentMethod === 'wallet' ? 'payment active' : 'payment'}
-                  onClick={() => setPaymentMethod('wallet')}
-                >
-                  <Wallet size={18} aria-hidden="true" />
-                  <span>Wallet</span>
-                </button>
-              </div>
-
-              {paymentMethod === 'upi' ? (
-                <div className="upi-container">
-                  <div className="upi-header">
-                    <div>
-                      <h4>UPI Express Checkout</h4>
-                      <p>Instant zero-fee transfer via PhonePe, Google Pay, Paytm, BHIM, or any UPI app</p>
-                    </div>
-                    <div className="upi-amount-pill">
-                      <span>₹{inrAmount.toLocaleString('en-IN')}</span>
-                      <small>(${total.toFixed(2)})</small>
-                    </div>
-                  </div>
-
-                  <div className="upi-vpa-strip">
-                    <div className="upi-vpa-info">
-                      <span className="upi-label">UPI ID / VPA</span>
-                      <code className="upi-code">{UPI_ID}</code>
-                    </div>
-                    <button type="button" className="copy-upi-button" onClick={copyUpiId} aria-label="Copy UPI ID">
-                      {upiCopied ? <Check size={16} /> : <Copy size={16} />}
-                      <span>{upiCopied ? 'Copied!' : 'Copy ID'}</span>
-                    </button>
-                  </div>
-
-                  <div className="upi-timer-strip">
-                    <div className="timer-info">
-                      <div className={`timer-clock-badge ${upiTimer <= 60 ? 'critical' : upiTimer <= 150 ? 'warning' : 'active'}`}>
-                        <span className="pulse-dot"></span>
-                        <span>QR Session Timer: <strong>{formatTimer(upiTimer)}</strong></span>
-                      </div>
-                      <span className="timer-subtext">
-                        {upiTimer > 0
-                          ? 'Valid for 5 minutes. Complete payment in your UPI app before timer expires.'
-                          : 'Payment session expired. Please refresh to generate a new QR code.'}
-                      </span>
-                    </div>
-                    {upiTimer === 0 ? (
-                      <button type="button" className="refresh-qr-btn" onClick={resetUpiTimer}>
-                        Refresh QR Code
-                      </button>
-                    ) : (
-                      <div className="timer-progress-track">
-                        <div className="timer-progress-bar" style={{ width: `${(upiTimer / 300) * 100}%` }}></div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="upi-body-grid">
-                    <div className="upi-qr-card">
-                      <div className="qr-badge">
-                        <QrCode size={16} />
-                        <span>{upiTimer > 0 ? 'Scan & Pay' : 'Session Expired'}</span>
-                      </div>
-                      <div className="qr-image-wrapper">
-                        {upiTimer > 0 ? (
-                          qrCodeDataUrl ? (
-                            <img src={qrCodeDataUrl} alt={`UPI QR Code for ${UPI_ID}`} className="qr-image" />
-                          ) : (
-                            <div className="qr-placeholder">Generating QR code...</div>
-                          )
-                        ) : (
-                          <div className="qr-expired-overlay">
-                            <span className="expired-icon">⏳</span>
-                            <strong>QR Code Expired</strong>
-                            <small>5 min session ended</small>
-                            <button type="button" className="refresh-qr-btn small" onClick={resetUpiTimer}>
-                              Regenerate QR
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="qr-instructions">
-                        <span>{upiTimer > 0 ? 'Scan with any UPI App' : 'Regenerate QR to pay'}</span>
-                        <div className="upi-apps-logos">
-                          <span className="app-tag gpay">GPay</span>
-                          <span className="app-tag phonepe">PhonePe</span>
-                          <span className="app-tag paytm">Paytm</span>
-                          <span className="app-tag bhim">BHIM</span>
-                          <span className="app-tag cred">CRED</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="upi-redirect-column">
-                      <div className="redirect-notice">
-                        <strong>Paying on this mobile or desktop?</strong>
-                        <p>Click below to redirect directly to UPI ID <code>{UPI_ID}</code></p>
-                      </div>
-
-                      <a
-                        href={upiUri}
-                        className="upi-direct-pay-button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handleUpiDirectRedirect();
-                        }}
-                      >
-                        <ExternalLink size={18} />
-                        <span>Pay via UPI App (Redirect to {UPI_ID})</span>
-                      </a>
-
-                      <div className="app-shortcuts">
-                        <span>Or select your app:</span>
-                        <div className="app-shortcut-buttons">
-                          <button
-                            type="button"
-                            className="shortcut-btn phonepe"
-                            onClick={() => handleUpiDirectRedirect('phonepe')}
-                          >
-                            PhonePe
-                          </button>
-                          <button
-                            type="button"
-                            className="shortcut-btn gpay"
-                            onClick={() => handleUpiDirectRedirect('gpay')}
-                          >
-                            Google Pay
-                          </button>
-                          <button
-                            type="button"
-                            className="shortcut-btn paytm"
-                            onClick={() => handleUpiDirectRedirect('paytm')}
-                          >
-                            Paytm
-                          </button>
-                          <button
-                            type="button"
-                            className="shortcut-btn bhim"
-                            onClick={() => handleUpiDirectRedirect()}
-                          >
-                            BHIM / Any
-                          </button>
-                        </div>
-                      </div>
-
-                      <label className="utr-input-group">
-                        <span>UPI UTR / Reference No. (Optional)</span>
-                        <input
-                          type="text"
-                          placeholder="e.g. 428172918291"
-                          maxLength={16}
-                          value={upiUtr}
-                          onChange={(e) => setUpiUtr(e.target.value)}
-                        />
-                        <small>Enter the 12-digit transaction ID from your UPI app receipt after payment.</small>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {paymentMethod === 'netbanking' ? (
-                <div className="netbanking-container">
-                  <div className="netbanking-header">
-                    <div>
-                      <h4>Net Banking</h4>
-                      <p>Transfer directly from your bank account with RBI 256-bit encrypted gateway</p>
-                    </div>
-                    <div className="upi-amount-pill">
-                      <span>₹{inrAmount.toLocaleString('en-IN')}</span>
-                      <small>(${total.toFixed(2)})</small>
-                    </div>
-                  </div>
-
-                  <span className="bank-section-label">Popular Indian Banks</span>
-                  <div className="popular-banks-grid">
-                    {POPULAR_BANKS.map((b) => (
-                      <button
-                        key={b.id}
-                        type="button"
-                        className={selectedBank === b.id ? 'bank-btn active' : 'bank-btn'}
-                        onClick={() => setSelectedBank(b.id)}
-                      >
-                        <span className="bank-icon">{b.icon}</span>
-                        <strong className="bank-name">{b.name}</strong>
-                        <small className="bank-code">{b.short}</small>
-                        {selectedBank === b.id ? <Check size={14} className="bank-check" /> : null}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="other-banks-section">
-                    <label>
-                      <span>Or Select Another Bank ({OTHER_BANKS.length}+ available)</span>
-                      <select
-                        value={selectedBank === 'other' ? otherBank : ''}
-                        onChange={(e) => {
-                          setSelectedBank('other');
-                          setOtherBank(e.target.value);
-                        }}
-                      >
-                        <option value="">-- Choose your bank --</option>
-                        {OTHER_BANKS.map((b) => (
-                          <option key={b} value={b}>
-                            {b}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-
-                  <div className="netbanking-security-footer">
-                    <ShieldCheck size={16} />
-                    <span>Instant confirmation · Zero bank surcharge · Verified RBI payment pipeline</span>
-                  </div>
-                </div>
-              ) : null}
-
-              {paymentMethod === 'card' ? (
-                <div className="card-mock-container">
-                  <div className="form-grid">
-                    <label className="wide-field">
-                      Card Number
-                      <input placeholder="4532 •••• •••• 8892" maxLength={19} />
-                    </label>
-                    <label>
-                      Expiry
-                      <input placeholder="MM / YY" maxLength={5} />
-                    </label>
-                    <label>
-                      CVV / CVC
-                      <input type="password" placeholder="•••" maxLength={4} />
-                    </label>
-                  </div>
-                </div>
-              ) : null}
-
-              {paymentMethod === 'wallet' ? (
-                <div className="wallet-checkout-panel">
-                  <div className="wallet-checkout-info">
-                    <Wallet size={24} />
-                    <div>
-                      <strong>
-                        {wallet
-                          ? `${wallet.walletType || 'Connected'}: ${shortAddress(wallet.address)}`
-                          : 'No Web3 Wallet Connected'}
-                      </strong>
-                      <span>
-                        {wallet
-                          ? '3% instant crypto discount applied to this order'
-                          : 'Connect MetaMask, Coinbase, or Trust Wallet for a 3% discount'}
-                      </span>
-                    </div>
-                  </div>
-                  {!wallet ? (
-                    <button type="button" className="light-button" onClick={() => setWalletModalOpen(true)}>
-                      Connect Wallet (MetaMask / Coinbase)
-                    </button>
-                  ) : (
-                    <button type="button" className="light-button" onClick={() => setWallet(null)}>
-                      Disconnect
-                    </button>
-                  )}
-                </div>
-              ) : null}
-            </div>
-
-            <label className="promo-field">
-              Promo
-              <input value={promoCode} onChange={(event) => setPromoCode(event.target.value)} placeholder="STYLE10" />
+          <section className="store-controls">
+            <label className="search-panel">
+              <Search size={18} aria-hidden="true" />
+              <input
+                id="productSearch"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search hoodies, trench, cardigans, gowns..."
+              />
             </label>
 
-            <OrderSummary
-              subtotal={subtotal}
-              promoDiscount={promoDiscount}
-              walletDiscount={walletDiscount}
-              shipping={shipping}
-              tax={tax}
-              total={total}
-            />
+            <label className="sort-panel">
+              <span>Sort</span>
+              <select value={sort} onChange={(event) => setSort(event.target.value)}>
+                <option value="featured">Most Popular</option>
+                <option value="rating">Top Rated</option>
+                <option value="price-low">Price: Low to High</option>
+                <option value="price-high">Price: High to Low</option>
+              </select>
+            </label>
+          </section>
 
-            {checkoutMessage ? <p className="form-message">{checkoutMessage}</p> : null}
-            {lastOrder ? (
-              <div className="success-order-banner">
-                <div className="success-order-top">
-                  <Check size={20} className="success-check-icon" />
-                  <div>
-                    <strong>Order {lastOrder.id} confirmed!</strong>
-                    <p>Estimated delivery {lastOrder.delivery}</p>
-                  </div>
-                </div>
-                {lastOrder.paymentMethod ? (
-                  <div className="success-order-meta">
-                    <span>Payment: <strong>{lastOrder.paymentMethod}</strong></span>
-                    {lastOrder.reference ? <span> ({lastOrder.reference})</span> : null}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
+          {/* Shelves */}
+          <ProductShelf
+            title={`${activeTab} Collection`}
+            products={searchedProducts}
+            wishlist={wishlist}
+            onAdd={addToCart}
+            onSave={toggleWishlist}
+            onView={setSelectedProduct}
+          />
 
-            <button className="checkout-button" type="submit">
-              <ShieldCheck size={18} aria-hidden="true" />
-              {paymentMethod === 'upi'
-                ? `Confirm UPI Order (₹${inrAmount.toLocaleString('en-IN')})`
-                : paymentMethod === 'netbanking'
-                ? `Proceed to Bank Gateway (₹${inrAmount.toLocaleString('en-IN')})`
-                : 'Place secure order'}
+          {/* Statement Grid with Model Reference */}
+          <section className="style-statement">
+            <h2>Crafted For Individuality. Worn With Confidence.</h2>
+            <div className="statement-grid">
+              <button className="statement-card" onClick={() => setSelectedProduct(products[7])}>
+                <img src={editorialTrench} alt="Monochrome Wool Trench" />
+                <span>Monochrome Wool Trench — $200</span>
+              </button>
+              <button className="statement-card" onClick={() => setSelectedProduct(products[6])}>
+                <img src={editorialReference} alt="Ribbed Atelier Cardigan" />
+                <span>Atelier Ribbed Cardigan — $100</span>
+              </button>
+            </div>
+          </section>
+
+          {/* Account & Verified Wallet Strip */}
+          <section className="account-wallet-strip">
+            <div>
+              <User size={21} aria-hidden="true" />
+              <strong>{user ? user.name : 'Guest Customer'}</strong>
+              <span>{user ? user.email : 'Create an account to save delivery location'}</span>
+            </div>
+            <button className="light-button" onClick={() => (user ? navigateTo('profile') : setAuthOpen(true))}>
+              {user ? 'My Profile' : 'Sign in'}
             </button>
-          </form>
-        </section>
-      </main>
 
+            <div>
+              <Wallet size={21} aria-hidden="true" />
+              <div>
+                <strong>{wallet ? `${wallet.walletType || 'Wallet'}: ${shortAddress(wallet.address)}` : 'Web3 Discount'}</strong>
+                <small className="verified-ens-badge">✓ Treasury: {OFFICIAL_WALLET.ens}</small>
+              </div>
+            </div>
+            <button className="dark-button" onClick={wallet ? () => setWallet(null) : () => setWalletModalOpen(true)}>
+              {wallet ? 'Disconnect' : 'Connect Wallet'}
+            </button>
+          </section>
+        </main>
+      ) : null}
+
+      {/* DEDICATED FULL PAYMENT / CHECKOUT PAGE */}
+      {currentView === 'checkout' ? (
+        <CheckoutPageView
+          cartLines={cartLines}
+          itemCount={itemCount}
+          subtotal={subtotal}
+          promoDiscount={promoDiscount}
+          walletDiscount={walletDiscount}
+          shipping={shipping}
+          tax={tax}
+          total={total}
+          inrAmount={inrAmount}
+          promoCode={promoCode}
+          setPromoCode={setPromoCode}
+          shippingSpeed={shippingSpeed}
+          setShippingSpeed={setShippingSpeed}
+          paymentMethod={paymentMethod}
+          setPaymentMethod={setPaymentMethod}
+          selectedBank={selectedBank}
+          setSelectedBank={setSelectedBank}
+          otherBank={otherBank}
+          setOtherBank={setOtherBank}
+          upiUtr={upiUtr}
+          setUpiUtr={setUpiUtr}
+          upiTimer={upiTimer}
+          resetUpiTimer={resetUpiTimer}
+          formatTimer={formatTimer}
+          qrCodeDataUrl={qrCodeDataUrl}
+          handleUpiDirectRedirect={handleUpiDirectRedirect}
+          checkout={checkout}
+          setCheckout={setCheckout}
+          checkoutMessage={checkoutMessage}
+          lastOrder={lastOrder}
+          placeOrder={placeOrder}
+          onBackToStore={() => navigateTo('home')}
+          wallet={wallet}
+          onOpenWalletModal={() => setWalletModalOpen(true)}
+          user={user}
+        />
+      ) : null}
+
+      {/* DEDICATED USER PROFILE AREA */}
+      {currentView === 'profile' ? (
+        <UserProfilePageView
+          user={user}
+          onSaveProfile={saveProfileInfo}
+          orders={orders}
+          wallet={wallet}
+          onOpenWalletModal={() => setWalletModalOpen(true)}
+          onDisconnectWallet={() => setWallet(null)}
+          appearance={appearance}
+          setAppearance={setAppearance}
+          onBackToStore={() => navigateTo('home')}
+          onGoToCheckout={() => navigateTo('checkout')}
+        />
+      ) : null}
+
+      {/* Mobile Bottom Navigation */}
       <nav className="bottom-nav" aria-label="Mobile actions">
-        <a href="#home">
+        <button className={currentView === 'home' ? 'active' : ''} onClick={() => navigateTo('home')}>
           <Home size={19} aria-hidden="true" />
-          Home
-        </a>
-        <button onClick={() => document.getElementById('productSearch')?.focus()}>
+          <span>Home</span>
+        </button>
+        <button onClick={() => { navigateTo('home'); setTimeout(() => document.getElementById('productSearch')?.focus(), 100); }}>
           <Search size={19} aria-hidden="true" />
-          Search
+          <span>Search</span>
         </button>
         <button onClick={() => setCartOpen(true)}>
           <ShoppingCart size={19} aria-hidden="true" />
-          Cart
+          <span>Cart ({itemCount})</span>
         </button>
-        <button onClick={() => setAuthOpen(true)}>
+        <button className={currentView === 'checkout' ? 'active' : ''} onClick={() => navigateTo('checkout')}>
+          <CreditCard size={19} aria-hidden="true" />
+          <span>Checkout</span>
+        </button>
+        <button className={currentView === 'profile' ? 'active' : ''} onClick={() => navigateTo('profile')}>
           <User size={19} aria-hidden="true" />
-          Profile
+          <span>Profile</span>
         </button>
       </nav>
 
+      {/* Cart Drawer */}
       {cartOpen ? (
         <CartDrawer
           cartLines={cartLines}
@@ -1232,9 +1065,14 @@ export default function App() {
           onClose={() => setCartOpen(false)}
           onQuantity={updateQuantity}
           onRemove={removeFromCart}
+          onProceedToCheckout={() => {
+            setCartOpen(false);
+            navigateTo('checkout');
+          }}
         />
       ) : null}
 
+      {/* Auth Modal */}
       {authOpen ? (
         <AuthModal
           mode={authMode}
@@ -1245,11 +1083,12 @@ export default function App() {
           onMode={setAuthMode}
           onSubmit={submitAuth}
           onSignOut={() => setUser(null)}
-          onWalletConnect={connectWallet}
+          onWalletConnect={() => setWalletModalOpen(true)}
           onWalletDisconnect={() => setWallet(null)}
         />
       ) : null}
 
+      {/* Product Detail Modal */}
       {selectedProduct ? (
         <ProductDialog
           product={selectedProduct}
@@ -1260,6 +1099,7 @@ export default function App() {
         />
       ) : null}
 
+      {/* Web3 Wallet Modal */}
       {walletModalOpen ? (
         <WalletModal
           isConnecting={connectingProvider}
@@ -1268,6 +1108,7 @@ export default function App() {
         />
       ) : null}
 
+      {/* Netbanking Redirection Gateway Simulation */}
       {isSimulatingRedirect ? (
         <div className="overlay center">
           <section className="gateway-modal" aria-label="Connecting to Bank Gateway">
@@ -1284,6 +1125,1149 @@ export default function App() {
   );
 }
 
+/* =========================================================================
+   ANIMATED HERO CAROUSEL COMPONENT (Same face model across multiple drops)
+   ========================================================================= */
+function HeroCarousel({
+  slides,
+  products,
+  onAddToCart,
+  onSelectProduct,
+  onConnectWallet,
+}: {
+  slides: typeof HERO_SLIDES;
+  products: Product[];
+  onAddToCart: (product: Product) => void;
+  onSelectProduct: (product: Product) => void;
+  onConnectWallet: () => void;
+}) {
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+
+  useEffect(() => {
+    if (isPaused) return;
+    const interval = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % slides.length);
+    }, 5500);
+    return () => clearInterval(interval);
+  }, [isPaused, slides.length]);
+
+  const nextSlide = () => setActiveSlide((prev) => (prev + 1) % slides.length);
+  const prevSlide = () => setActiveSlide((prev) => (prev - 1 + slides.length) % slides.length);
+
+  const currentSlide = slides[activeSlide];
+  const currentProduct = products.find((p) => p.id === currentSlide.productId) || products[0];
+
+  return (
+    <section
+      className="hero-carousel-container"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      aria-label="Editorial Lookbook Carousel"
+    >
+      <div className="carousel-slide-wrap">
+        <img
+          key={currentSlide.id}
+          src={currentSlide.image}
+          alt={currentSlide.title}
+          className="carousel-model-image fade-in-scale"
+        />
+
+        <div className="carousel-overlay-content">
+          <span className="carousel-drop-badge">{currentSlide.subtitle}</span>
+          <h1 className="carousel-headline">{currentSlide.title}</h1>
+          <p className="carousel-subheading">{currentSlide.description}</p>
+
+          <div className="carousel-actions">
+            <button className="dark-button hero-btn" onClick={() => onAddToCart(currentProduct)}>
+              <ShoppingBag size={17} aria-hidden="true" />
+              Shop This Look ({formatMoney(currentProduct.price)})
+            </button>
+            <button className="light-button hero-btn" onClick={() => onSelectProduct(currentProduct)}>
+              View Details
+            </button>
+            <button className="light-button hero-btn" onClick={onConnectWallet}>
+              <Wallet size={17} aria-hidden="true" />
+              3% Wallet Deal
+            </button>
+          </div>
+        </div>
+
+        <button className="carousel-nav-btn prev" onClick={prevSlide} aria-label="Previous Outfit">
+          <ChevronLeft size={22} />
+        </button>
+        <button className="carousel-nav-btn next" onClick={nextSlide} aria-label="Next Outfit">
+          <ChevronRight size={22} />
+        </button>
+
+        <div className="carousel-dots">
+          {slides.map((slide, index) => (
+            <button
+              key={slide.id}
+              className={activeSlide === index ? 'dot active' : 'dot'}
+              onClick={() => setActiveSlide(index)}
+              aria-label={`Go to ${slide.title}`}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* =========================================================================
+   INTERACTIVE GOOGLE MAP LOCATION PICKER COMPONENT
+   ========================================================================= */
+function GoogleMapLocationPicker({
+  lat,
+  lng,
+  landmark,
+  onLocationChange,
+}: {
+  lat: number;
+  lng: number;
+  landmark: string;
+  onLocationChange: (lat: number, lng: number, landmark?: string) => void;
+}) {
+  const [isLocating, setIsLocating] = useState(false);
+  const [locateStatus, setLocateStatus] = useState('');
+
+  const handleGetCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocateStatus('Geolocation is not supported by your browser.');
+      return;
+    }
+    setIsLocating(true);
+    setLocateStatus('Pinpointing exact GPS coordinates...');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false);
+        const { latitude, longitude } = pos.coords;
+        onLocationChange(Number(latitude.toFixed(6)), Number(longitude.toFixed(6)), landmark);
+        setLocateStatus(`✓ Accurate location pinned! Coordinates: [${latitude.toFixed(4)}, ${longitude.toFixed(4)}]`);
+      },
+      () => {
+        setIsLocating(false);
+        setLocateStatus('Location access was denied. You can manually adjust coordinates below.');
+      },
+      { timeout: 10000, enableHighAccuracy: true },
+    );
+  };
+
+  const handleMapClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    // Map click offset calculation relative to current center
+    const dLat = ((rect.height / 2 - y) / rect.height) * 0.05;
+    const dLng = ((x - rect.width / 2) / rect.width) * 0.05;
+    const newLat = Number((lat + dLat).toFixed(6));
+    const newLng = Number((lng + dLng).toFixed(6));
+    onLocationChange(newLat, newLng, landmark);
+    setLocateStatus(`✓ Delivery pin updated to: [${newLat}, ${newLng}]`);
+  };
+
+  return (
+    <div className="location-picker-box">
+      <div className="location-picker-header">
+        <div>
+          <strong>📍 Exact Delivery Location Pin</strong>
+          <p>Pinpoint your exact building or house for accurate delivery</p>
+        </div>
+        <button
+          type="button"
+          className="locate-gps-button"
+          onClick={handleGetCurrentLocation}
+          disabled={isLocating}
+        >
+          <Navigation size={16} className={isLocating ? 'spin-icon' : ''} />
+          <span>{isLocating ? 'Locating...' : 'Use My GPS Location'}</span>
+        </button>
+      </div>
+
+      {/* Interactive Map Visualizer */}
+      <div className="interactive-map-frame" onClick={handleMapClick} title="Click anywhere on the map to pin exact delivery location">
+        <iframe
+          title="Google Map Location View"
+          className="embedded-map-iframe"
+          src={`https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed`}
+          loading="lazy"
+          tabIndex={-1}
+        />
+        <div className="map-pin-overlay">
+          <div className="pin-pulse"></div>
+          <MapPin size={34} className="map-pin-icon" />
+          <span className="pin-label">Delivery Here</span>
+        </div>
+        <div className="map-hint-banner">Click map to relocate delivery pin</div>
+      </div>
+
+      <div className="location-coordinates-row">
+        <div className="coord-badge">
+          <span>Lat: <strong>{lat.toFixed(5)}</strong></span>
+          <span>Lng: <strong>{lng.toFixed(5)}</strong></span>
+        </div>
+        {locateStatus ? <span className="locate-status-text">{locateStatus}</span> : null}
+      </div>
+
+      <label className="landmark-field">
+        <span>Delivery Landmark / Floor / Apartment notes</span>
+        <input
+          placeholder="e.g. Near Royal Plaza, 4th Floor, Door #402"
+          value={landmark}
+          onChange={(e) => onLocationChange(lat, lng, e.target.value)}
+        />
+      </label>
+    </div>
+  );
+}
+
+/* =========================================================================
+   DEDICATED FULL PAYMENT / CHECKOUT PAGE VIEW
+   ========================================================================= */
+function CheckoutPageView({
+  cartLines,
+  itemCount,
+  subtotal,
+  promoDiscount,
+  walletDiscount,
+  shipping,
+  tax,
+  total,
+  inrAmount,
+  promoCode,
+  setPromoCode,
+  shippingSpeed,
+  setShippingSpeed,
+  paymentMethod,
+  setPaymentMethod,
+  selectedBank,
+  setSelectedBank,
+  otherBank,
+  setOtherBank,
+  upiUtr,
+  setUpiUtr,
+  upiTimer,
+  resetUpiTimer,
+  formatTimer,
+  qrCodeDataUrl,
+  handleUpiDirectRedirect,
+  checkout,
+  setCheckout,
+  checkoutMessage,
+  lastOrder,
+  placeOrder,
+  onBackToStore,
+  wallet,
+  onOpenWalletModal,
+  user,
+}: {
+  cartLines: { item: CartItem; product: Product }[];
+  itemCount: number;
+  subtotal: number;
+  promoDiscount: number;
+  walletDiscount: number;
+  shipping: number;
+  tax: number;
+  total: number;
+  inrAmount: number;
+  promoCode: string;
+  setPromoCode: (v: string) => void;
+  shippingSpeed: 'standard' | 'express';
+  setShippingSpeed: (v: 'standard' | 'express') => void;
+  paymentMethod: 'upi' | 'netbanking' | 'card' | 'wallet';
+  setPaymentMethod: (v: 'upi' | 'netbanking' | 'card' | 'wallet') => void;
+  selectedBank: string;
+  setSelectedBank: (v: string) => void;
+  otherBank: string;
+  setOtherBank: (v: string) => void;
+  upiUtr: string;
+  setUpiUtr: (v: string) => void;
+  upiTimer: number;
+  resetUpiTimer: () => void;
+  formatTimer: (s: number) => string;
+  qrCodeDataUrl: string;
+  handleUpiDirectRedirect: (scheme?: 'phonepe' | 'gpay' | 'paytm') => void;
+  checkout: CheckoutForm;
+  setCheckout: React.Dispatch<React.SetStateAction<CheckoutForm>>;
+  checkoutMessage: string;
+  lastOrder: OrderRecord | null;
+  placeOrder: (e: FormEvent<HTMLFormElement>) => void;
+  onBackToStore: () => void;
+  wallet: WalletProfile | null;
+  onOpenWalletModal: () => void;
+  user: UserProfile | null;
+}) {
+  return (
+    <main className="dedicated-checkout-page">
+      <div className="checkout-page-topbar">
+        <button type="button" className="back-store-btn" onClick={onBackToStore}>
+          <ArrowLeft size={18} />
+          <span>Back to Store</span>
+        </button>
+        <div className="checkout-page-title">
+          <h2>Secure Checkout</h2>
+          <span>256-Bit SSL Encrypted Order Portal</span>
+        </div>
+        <div className="checkout-trust-badge">
+          <ShieldCheck size={18} />
+          <span>Verified Merchant</span>
+        </div>
+      </div>
+
+      <div className="dedicated-checkout-grid">
+        {/* Left Column: Form, Map, and Payment */}
+        <section className="checkout-main-column">
+          <form className="checkout-form" onSubmit={placeOrder}>
+            {/* Step 1: Customer & Delivery Details */}
+            <div className="form-step-card">
+              <div className="form-topline">
+                <h3>1. Customer & Delivery Address</h3>
+                {user ? (
+                  <span className="profile-autofill-tag">✓ Pre-filled from your Profile</span>
+                ) : null}
+              </div>
+
+              <div className="form-grid">
+                <label>
+                  Full name *
+                  <input
+                    required
+                    value={checkout.fullName}
+                    onChange={(e) => setCheckout({ ...checkout, fullName: e.target.value })}
+                    placeholder="e.g. John Doe"
+                  />
+                </label>
+                <label>
+                  Email address *
+                  <input
+                    required
+                    type="email"
+                    value={checkout.email}
+                    onChange={(e) => setCheckout({ ...checkout, email: e.target.value })}
+                    placeholder="john@example.com"
+                  />
+                </label>
+                <label>
+                  Primary phone *
+                  <input
+                    required
+                    value={checkout.phone}
+                    onChange={(e) => setCheckout({ ...checkout, phone: e.target.value })}
+                    placeholder="+91 98765 43210"
+                  />
+                </label>
+                <label>
+                  Alternate phone (optional)
+                  <input
+                    value={checkout.secondaryPhone || ''}
+                    onChange={(e) => setCheckout({ ...checkout, secondaryPhone: e.target.value })}
+                    placeholder="Secondary contact"
+                  />
+                </label>
+                <label className="wide-field">
+                  Street address *
+                  <input
+                    required
+                    value={checkout.address}
+                    onChange={(e) => setCheckout({ ...checkout, address: e.target.value })}
+                    placeholder="Flat / House / Building / Street address"
+                  />
+                </label>
+                <label>
+                  City *
+                  <input
+                    required
+                    value={checkout.city}
+                    onChange={(e) => setCheckout({ ...checkout, city: e.target.value })}
+                    placeholder="City"
+                  />
+                </label>
+                <label>
+                  State / Region *
+                  <input
+                    required
+                    value={checkout.region}
+                    onChange={(e) => setCheckout({ ...checkout, region: e.target.value })}
+                    placeholder="State"
+                  />
+                </label>
+                <label>
+                  Postal / PIN Code *
+                  <input
+                    required
+                    value={checkout.postal}
+                    onChange={(e) => setCheckout({ ...checkout, postal: e.target.value })}
+                    placeholder="Postal code"
+                  />
+                </label>
+              </div>
+
+              {/* Google Map Delivery Location Picker */}
+              <GoogleMapLocationPicker
+                lat={checkout.lat || 28.6139}
+                lng={checkout.lng || 77.209}
+                landmark={checkout.landmark || ''}
+                onLocationChange={(lat, lng, landmark) => {
+                  setCheckout((prev) => ({
+                    ...prev,
+                    lat,
+                    lng,
+                    landmark: landmark !== undefined ? landmark : prev.landmark,
+                  }));
+                }}
+              />
+            </div>
+
+            {/* Step 2: Shipping Speed */}
+            <div className="form-step-card">
+              <h3>2. Shipping Method</h3>
+              <div className="choice-grid">
+                <button
+                  type="button"
+                  className={shippingSpeed === 'standard' ? 'choice active' : 'choice'}
+                  onClick={() => setShippingSpeed('standard')}
+                >
+                  <Truck size={19} aria-hidden="true" />
+                  <span>Standard Tracked</span>
+                  <small>{getDeliveryWindow('standard')} · $8.00 (Free over $250)</small>
+                </button>
+                <button
+                  type="button"
+                  className={shippingSpeed === 'express' ? 'choice active' : 'choice'}
+                  onClick={() => setShippingSpeed('express')}
+                >
+                  <PackageCheck size={19} aria-hidden="true" />
+                  <span>Priority Express</span>
+                  <small>{getDeliveryWindow('express')} · $18.00</small>
+                </button>
+              </div>
+            </div>
+
+            {/* Step 3: Payment Method Options */}
+            <div className="form-step-card">
+              <div className="form-topline">
+                <h3>3. Payment Gateway</h3>
+                <span className="payment-security-note">Zero convenience fees</span>
+              </div>
+
+              <div className="payment-options-section">
+                <div className="payment-row">
+                  <button
+                    type="button"
+                    className={paymentMethod === 'upi' ? 'payment active' : 'payment'}
+                    onClick={() => setPaymentMethod('upi')}
+                  >
+                    <Smartphone size={18} aria-hidden="true" />
+                    <span>UPI & QR</span>
+                    <span className="badge-pill">Instant</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={paymentMethod === 'netbanking' ? 'payment active' : 'payment'}
+                    onClick={() => setPaymentMethod('netbanking')}
+                  >
+                    <Landmark size={18} aria-hidden="true" />
+                    <span>Net Banking</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={paymentMethod === 'card' ? 'payment active' : 'payment'}
+                    onClick={() => setPaymentMethod('card')}
+                  >
+                    <CreditCard size={18} aria-hidden="true" />
+                    <span>Card</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={paymentMethod === 'wallet' ? 'payment active' : 'payment'}
+                    onClick={() => setPaymentMethod('wallet')}
+                  >
+                    <Wallet size={18} aria-hidden="true" />
+                    <span>Wallet</span>
+                  </button>
+                </div>
+
+                {/* UPI Panel (UPI ID text hidden; only QR code and redirect options shown) */}
+                {paymentMethod === 'upi' ? (
+                  <div className="upi-container">
+                    <div className="upi-header">
+                      <div>
+                        <h4>UPI Express Payment</h4>
+                        <p>Scan the QR code or click to pay directly with your UPI app</p>
+                      </div>
+                      <div className="upi-amount-pill">
+                        <span>₹{inrAmount.toLocaleString('en-IN')}</span>
+                        <small>(${total.toFixed(2)})</small>
+                      </div>
+                    </div>
+
+                    {/* 5-Minute Timer Bar */}
+                    <div className="upi-timer-strip">
+                      <div className="timer-info">
+                        <div className={`timer-clock-badge ${upiTimer <= 60 ? 'critical' : upiTimer <= 150 ? 'warning' : 'active'}`}>
+                          <span className="pulse-dot"></span>
+                          <span>Session Timer: <strong>{formatTimer(upiTimer)}</strong></span>
+                        </div>
+                        <span className="timer-subtext">
+                          {upiTimer > 0
+                            ? 'QR Code is active and valid for 5 minutes. Complete payment before session ends.'
+                            : 'Payment session expired. Please refresh to regenerate a new QR code.'}
+                        </span>
+                      </div>
+                      {upiTimer === 0 ? (
+                        <button type="button" className="refresh-qr-btn" onClick={resetUpiTimer}>
+                          Regenerate QR Code
+                        </button>
+                      ) : (
+                        <div className="timer-progress-track">
+                          <div className="timer-progress-bar" style={{ width: `${(upiTimer / 300) * 100}%` }}></div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="upi-body-grid">
+                      <div className="upi-qr-card">
+                        <div className="qr-badge">
+                          <QrCode size={16} />
+                          <span>{upiTimer > 0 ? 'Scan & Pay' : 'Session Expired'}</span>
+                        </div>
+                        <div className="qr-image-wrapper">
+                          {upiTimer > 0 ? (
+                            qrCodeDataUrl ? (
+                              <img src={qrCodeDataUrl} alt="UPI QR Code Payment" className="qr-image" />
+                            ) : (
+                              <div className="qr-placeholder">Generating QR code...</div>
+                            )
+                          ) : (
+                            <div className="qr-expired-overlay">
+                              <span className="expired-icon">⏳</span>
+                              <strong>QR Code Expired</strong>
+                              <small>5 min session ended</small>
+                              <button type="button" className="refresh-qr-btn small" onClick={resetUpiTimer}>
+                                Regenerate QR
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="qr-instructions">
+                          <span>{upiTimer > 0 ? 'Scan with any UPI App' : 'Regenerate QR to pay'}</span>
+                          <div className="upi-apps-logos">
+                            <span className="app-tag gpay">GPay</span>
+                            <span className="app-tag phonepe">PhonePe</span>
+                            <span className="app-tag paytm">Paytm</span>
+                            <span className="app-tag bhim">BHIM</span>
+                            <span className="app-tag cred">CRED</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="upi-redirect-column">
+                        <div className="redirect-notice">
+                          <strong>Pay on this device?</strong>
+                          <p>Click below to open your installed UPI app and complete checkout directly:</p>
+                        </div>
+
+                        {/* Primary direct UPI app redirect button */}
+                        <button
+                          type="button"
+                          className="upi-direct-pay-button"
+                          onClick={() => handleUpiDirectRedirect()}
+                        >
+                          <ExternalLink size={18} />
+                          <span>Pay via UPI App (Instant App Redirect)</span>
+                        </button>
+
+                        <div className="app-shortcuts">
+                          <span>Or select your app:</span>
+                          <div className="app-shortcut-buttons">
+                            <button
+                              type="button"
+                              className="shortcut-btn phonepe"
+                              onClick={() => handleUpiDirectRedirect('phonepe')}
+                            >
+                              PhonePe
+                            </button>
+                            <button
+                              type="button"
+                              className="shortcut-btn gpay"
+                              onClick={() => handleUpiDirectRedirect('gpay')}
+                            >
+                              Google Pay
+                            </button>
+                            <button
+                              type="button"
+                              className="shortcut-btn paytm"
+                              onClick={() => handleUpiDirectRedirect('paytm')}
+                            >
+                              Paytm
+                            </button>
+                            <button
+                              type="button"
+                              className="shortcut-btn bhim"
+                              onClick={() => handleUpiDirectRedirect()}
+                            >
+                              BHIM / Any
+                            </button>
+                          </div>
+                        </div>
+
+                        <label className="utr-input-group">
+                          <span>UPI Reference / UTR No. (Optional)</span>
+                          <input
+                            type="text"
+                            placeholder="e.g. 428172918291"
+                            maxLength={16}
+                            value={upiUtr}
+                            onChange={(e) => setUpiUtr(e.target.value)}
+                          />
+                          <small>Enter the 12-digit transaction ID from your UPI app receipt after payment.</small>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Net Banking Panel */}
+                {paymentMethod === 'netbanking' ? (
+                  <div className="netbanking-container">
+                    <div className="netbanking-header">
+                      <div>
+                        <h4>Net Banking</h4>
+                        <p>Transfer directly from your bank account with RBI 256-bit encrypted gateway</p>
+                      </div>
+                      <div className="upi-amount-pill">
+                        <span>₹{inrAmount.toLocaleString('en-IN')}</span>
+                        <small>(${total.toFixed(2)})</small>
+                      </div>
+                    </div>
+
+                    <span className="bank-section-label">Popular Indian Banks</span>
+                    <div className="popular-banks-grid">
+                      {POPULAR_BANKS.map((b) => (
+                        <button
+                          key={b.id}
+                          type="button"
+                          className={selectedBank === b.id ? 'bank-btn active' : 'bank-btn'}
+                          onClick={() => setSelectedBank(b.id)}
+                        >
+                          <span className="bank-icon">{b.icon}</span>
+                          <strong className="bank-name">{b.name}</strong>
+                          <small className="bank-code">{b.short}</small>
+                          {selectedBank === b.id ? <Check size={14} className="bank-check" /> : null}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="other-banks-section">
+                      <label>
+                        <span>Or Select Another Bank ({OTHER_BANKS.length}+ available)</span>
+                        <select
+                          value={selectedBank === 'other' ? otherBank : ''}
+                          onChange={(e) => {
+                            setSelectedBank('other');
+                            setOtherBank(e.target.value);
+                          }}
+                        >
+                          <option value="">-- Choose your bank --</option>
+                          {OTHER_BANKS.map((b) => (
+                            <option key={b} value={b}>
+                              {b}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="netbanking-security-footer">
+                      <ShieldCheck size={16} />
+                      <span>Instant confirmation · Zero bank surcharge · Verified RBI payment pipeline</span>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Card Panel */}
+                {paymentMethod === 'card' ? (
+                  <div className="card-mock-container">
+                    <div className="form-grid">
+                      <label className="wide-field">
+                        Card Number
+                        <input placeholder="4532 •••• •••• 8892" maxLength={19} />
+                      </label>
+                      <label>
+                        Expiry
+                        <input placeholder="MM / YY" maxLength={5} />
+                      </label>
+                      <label>
+                        CVV / CVC
+                        <input type="password" placeholder="•••" maxLength={4} />
+                      </label>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Web3 Wallet Panel with Verified Treasury ID */}
+                {paymentMethod === 'wallet' ? (
+                  <div className="wallet-checkout-panel">
+                    <div className="wallet-checkout-info">
+                      <Wallet size={24} />
+                      <div>
+                        <strong>
+                          {wallet
+                            ? `${wallet.walletType || 'Connected'}: ${shortAddress(wallet.address)}`
+                            : 'No Web3 Wallet Connected'}
+                        </strong>
+                        <span>
+                          {wallet
+                            ? '3% instant crypto discount applied to this order'
+                            : 'Connect MetaMask, Coinbase, or Trust Wallet for a 3% discount'}
+                        </span>
+                        <div className="official-vault-badge">
+                          <span>Official Vault: </span>
+                          <a href={OFFICIAL_WALLET.explorer} target="_blank" rel="noopener noreferrer">
+                            {OFFICIAL_WALLET.ens} ({shortAddress(OFFICIAL_WALLET.address)}) ↗
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                    {!wallet ? (
+                      <button type="button" className="light-button" onClick={onOpenWalletModal}>
+                        Connect Wallet (MetaMask / Coinbase)
+                      </button>
+                    ) : (
+                      <button type="button" className="light-button" onClick={onOpenWalletModal}>
+                        Switch / Manage
+                      </button>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            {checkoutMessage ? <p className="form-message">{checkoutMessage}</p> : null}
+
+            {lastOrder ? (
+              <div className="success-order-banner">
+                <div className="success-order-top">
+                  <Check size={20} className="success-check-icon" />
+                  <div>
+                    <strong>Order {lastOrder.id} placed successfully!</strong>
+                    <p>Estimated delivery {lastOrder.delivery}</p>
+                  </div>
+                </div>
+                {lastOrder.paymentMethod ? (
+                  <div className="success-order-meta">
+                    <span>Payment: <strong>{lastOrder.paymentMethod}</strong></span>
+                    {lastOrder.reference ? <span> ({lastOrder.reference})</span> : null}
+                  </div>
+                ) : null}
+                {lastOrder.deliveryAddress ? (
+                  <div className="success-order-meta">
+                    <span>Delivery Address: {lastOrder.deliveryAddress}</span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            <button className="checkout-button submit-order-btn" type="submit">
+              <ShieldCheck size={18} aria-hidden="true" />
+              {paymentMethod === 'upi'
+                ? `Confirm UPI Order (₹${inrAmount.toLocaleString('en-IN')})`
+                : paymentMethod === 'netbanking'
+                ? `Proceed to Bank Gateway (₹${inrAmount.toLocaleString('en-IN')})`
+                : `Place Secure Order (${formatMoney(total)})`}
+            </button>
+          </form>
+        </section>
+
+        {/* Right Column: Order Summary */}
+        <aside className="checkout-summary-column">
+          <div className="order-review-card">
+            <h3>Order Summary ({itemCount} items)</h3>
+            <div className="review-items-list">
+              {cartLines.map(({ item, product }) => (
+                <div className="review-item-row" key={`${item.productId}-${item.color}-${item.size}`}>
+                  <img src={product.image} alt={product.name} />
+                  <div>
+                    <strong>{product.name}</strong>
+                    <span>{item.color} · Size {item.size} · Qty {item.quantity}</span>
+                    <small>{formatMoney(product.price * item.quantity)}</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <label className="promo-field-row">
+              <span>Promo Code</span>
+              <div className="promo-input-wrap">
+                <input
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value)}
+                  placeholder="STYLE10"
+                />
+              </div>
+            </label>
+
+            <OrderSummary
+              subtotal={subtotal}
+              promoDiscount={promoDiscount}
+              walletDiscount={walletDiscount}
+              shipping={shipping}
+              tax={tax}
+              total={total}
+            />
+
+            <div className="official-merchant-guarantee">
+              <ShieldCheck size={16} />
+              <div>
+                <strong>Official Merchant ID</strong>
+                <span>{OFFICIAL_WALLET.ens}</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+  );
+}
+
+/* =========================================================================
+   DEDICATED USER PROFILE PAGE VIEW (Saves all info in localStorage)
+   ========================================================================= */
+function UserProfilePageView({
+  user,
+  onSaveProfile,
+  orders,
+  wallet,
+  onOpenWalletModal,
+  onDisconnectWallet,
+  appearance,
+  setAppearance,
+  onBackToStore,
+  onGoToCheckout,
+}: {
+  user: UserProfile | null;
+  onSaveProfile: (profile: UserProfile) => void;
+  orders: OrderRecord[];
+  wallet: WalletProfile | null;
+  onOpenWalletModal: () => void;
+  onDisconnectWallet: () => void;
+  appearance: AppearanceMode;
+  setAppearance: (mode: AppearanceMode) => void;
+  onBackToStore: () => void;
+  onGoToCheckout: () => void;
+}) {
+  const [name, setName] = useState(user?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [secondaryPhone, setSecondaryPhone] = useState(user?.secondaryPhone || '');
+  const [address, setAddress] = useState(user?.address || '');
+  const [city, setCity] = useState(user?.city || '');
+  const [region, setRegion] = useState(user?.region || '');
+  const [postal, setPostal] = useState(user?.postal || '');
+  const [landmark, setLandmark] = useState(user?.landmark || '');
+  const [lat, setLat] = useState(user?.lat || 28.6139);
+  const [lng, setLng] = useState(user?.lng || 77.209);
+  const [savedPayment, setSavedPayment] = useState<'upi' | 'netbanking' | 'card' | 'wallet'>(user?.savedPaymentMethod || 'upi');
+  const [saveMessage, setSaveMessage] = useState('');
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !email.trim()) {
+      setSaveMessage('Please fill in your name and email.');
+      return;
+    }
+    const updated: UserProfile = {
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      secondaryPhone: secondaryPhone.trim(),
+      address: address.trim(),
+      city: city.trim(),
+      region: region.trim(),
+      postal: postal.trim(),
+      landmark: landmark.trim(),
+      lat,
+      lng,
+      savedPaymentMethod: savedPayment,
+    };
+    onSaveProfile(updated);
+    setSaveMessage('✓ All profile, contact, and delivery details saved permanently to localStorage!');
+    setTimeout(() => setSaveMessage(''), 4500);
+  };
+
+  return (
+    <main className="profile-page-view">
+      <div className="profile-page-header">
+        <button type="button" className="back-store-btn" onClick={onBackToStore}>
+          <ArrowLeft size={18} />
+          <span>Back to Store</span>
+        </button>
+        <div className="profile-header-title">
+          <h2>Member Profile & Preferences</h2>
+          <span>Manage your address, exact GPS pin, Web3 wallet, and preferences</span>
+        </div>
+        <button type="button" className="dark-button" onClick={onGoToCheckout}>
+          Go to Checkout
+        </button>
+      </div>
+
+      <div className="profile-page-grid">
+        {/* Left: Form with Profile, Map, and Preferences */}
+        <section className="profile-form-column">
+          <form className="profile-edit-form" onSubmit={handleSave}>
+            <div className="profile-section-card">
+              <div className="avatar-header-row">
+                <div className="profile-avatar-circle">
+                  {(name || email || 'M').slice(0, 1).toUpperCase()}
+                </div>
+                <div>
+                  <h3>{name || 'Customer Account'}</h3>
+                  <span>{email || 'No email saved yet'}</span>
+                </div>
+              </div>
+
+              <div className="form-grid">
+                <label>
+                  Full Name *
+                  <input
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="John Doe"
+                  />
+                </label>
+                <label>
+                  Email Address *
+                  <input
+                    required
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="john@example.com"
+                  />
+                </label>
+                <label>
+                  Primary Mobile Number
+                  <input
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="+91 98765 43210"
+                  />
+                </label>
+                <label>
+                  Alternate Phone
+                  <input
+                    value={secondaryPhone}
+                    onChange={(e) => setSecondaryPhone(e.target.value)}
+                    placeholder="Secondary contact"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Saved Delivery Address & Interactive Google Map */}
+            <div className="profile-section-card">
+              <h3>Saved Delivery Address & Location Pin</h3>
+              <p className="section-desc">Set your permanent delivery location so every future order is automatically delivered to this exact address.</p>
+
+              <div className="form-grid">
+                <label className="wide-field">
+                  Street Address
+                  <input
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="Flat / Building / House number / Street"
+                  />
+                </label>
+                <label>
+                  City
+                  <input
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="City"
+                  />
+                </label>
+                <label>
+                  State / Region
+                  <input
+                    value={region}
+                    onChange={(e) => setRegion(e.target.value)}
+                    placeholder="State / Region"
+                  />
+                </label>
+                <label>
+                  Postal / PIN Code
+                  <input
+                    value={postal}
+                    onChange={(e) => setPostal(e.target.value)}
+                    placeholder="Postal code"
+                  />
+                </label>
+              </div>
+
+              <GoogleMapLocationPicker
+                lat={lat}
+                lng={lng}
+                landmark={landmark}
+                onLocationChange={(newLat, newLng, newLandmark) => {
+                  setLat(newLat);
+                  setLng(newLng);
+                  if (newLandmark !== undefined) setLandmark(newLandmark);
+                }}
+              />
+            </div>
+
+            {/* Saved Payment Preference */}
+            <div className="profile-section-card">
+              <h3>Preferred Payment Method</h3>
+              <div className="payment-row">
+                <button
+                  type="button"
+                  className={savedPayment === 'upi' ? 'payment active' : 'payment'}
+                  onClick={() => setSavedPayment('upi')}
+                >
+                  <Smartphone size={17} />
+                  <span>UPI Express</span>
+                </button>
+                <button
+                  type="button"
+                  className={savedPayment === 'netbanking' ? 'payment active' : 'payment'}
+                  onClick={() => setSavedPayment('netbanking')}
+                >
+                  <Landmark size={17} />
+                  <span>Net Banking</span>
+                </button>
+                <button
+                  type="button"
+                  className={savedPayment === 'card' ? 'payment active' : 'payment'}
+                  onClick={() => setSavedPayment('card')}
+                >
+                  <CreditCard size={17} />
+                  <span>Card</span>
+                </button>
+                <button
+                  type="button"
+                  className={savedPayment === 'wallet' ? 'payment active' : 'payment'}
+                  onClick={() => setSavedPayment('wallet')}
+                >
+                  <Wallet size={17} />
+                  <span>Web3 Wallet</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Appearance Preference */}
+            <div className="profile-section-card">
+              <h3>Store Appearance</h3>
+              <div className="theme-options-grid">
+                <button
+                  type="button"
+                  className={appearance === 'light' ? 'theme-card-btn active' : 'theme-card-btn'}
+                  onClick={() => setAppearance('light')}
+                >
+                  <Sun size={20} />
+                  <strong>Light</strong>
+                  <small>Clean high-contrast daytime mode</small>
+                </button>
+                <button
+                  type="button"
+                  className={appearance === 'dark' ? 'theme-card-btn active' : 'theme-card-btn'}
+                  onClick={() => setAppearance('dark')}
+                >
+                  <Moon size={20} />
+                  <strong>Dark</strong>
+                  <small>Midnight luxury aesthetic</small>
+                </button>
+                <button
+                  type="button"
+                  className={appearance === 'system' ? 'theme-card-btn active' : 'theme-card-btn'}
+                  onClick={() => setAppearance('system')}
+                >
+                  <Monitor size={20} />
+                  <strong>System</strong>
+                  <small>Follows your device preferences</small>
+                </button>
+              </div>
+            </div>
+
+            {saveMessage ? <p className="success-message">{saveMessage}</p> : null}
+
+            <button type="submit" className="checkout-button save-profile-btn">
+              <Check size={18} />
+              Save All Profile & Delivery Information
+            </button>
+          </form>
+        </section>
+
+        {/* Right: Wallet, Official Treasury & Order History */}
+        <aside className="profile-sidebar-column">
+          {/* Web3 Wallet Card */}
+          <div className="profile-sidebar-card">
+            <h3>Web3 Wallet Status</h3>
+            <div className="wallet-card-content">
+              <Wallet size={24} />
+              <div>
+                <strong>{wallet ? `${wallet.walletType || 'Wallet'}: ${shortAddress(wallet.address)}` : 'No Wallet Connected'}</strong>
+                <span>{wallet ? '3% instant discount active on all drops' : 'Connect MetaMask or Coinbase wallet'}</span>
+              </div>
+            </div>
+            {wallet ? (
+              <button type="button" className="light-button full-width" onClick={onDisconnectWallet}>
+                Disconnect Wallet
+              </button>
+            ) : (
+              <button type="button" className="dark-button full-width" onClick={onOpenWalletModal}>
+                Connect Wallet (MetaMask / Coinbase)
+              </button>
+            )}
+
+            {/* Official Store Treasury Contract ID */}
+            <div className="official-treasury-box">
+              <span className="official-badge">✓ Official Store Treasury Vault</span>
+              <p>All on-chain order payments and web3 transactions are settled directly with our audited treasury vault:</p>
+              <code>{OFFICIAL_WALLET.ens}</code>
+              <small>{OFFICIAL_WALLET.address}</small>
+              <a href={OFFICIAL_WALLET.explorer} target="_blank" rel="noopener noreferrer" className="etherscan-link">
+                View on Etherscan ↗
+              </a>
+            </div>
+          </div>
+
+          {/* Order History */}
+          <div className="profile-sidebar-card">
+            <h3>Order History ({orders.length})</h3>
+            {orders.length ? (
+              <div className="orders-history-list">
+                {orders.map((ord) => (
+                  <div className="order-history-item" key={ord.id}>
+                    <div className="order-history-top">
+                      <strong>{ord.id}</strong>
+                      <span className="order-price">{formatMoney(ord.total)}</span>
+                    </div>
+                    <span className="order-date-text">{ord.date || 'Recent order'} · {ord.delivery}</span>
+                    {ord.paymentMethod ? (
+                      <small className="order-method-badge">{ord.paymentMethod}</small>
+                    ) : null}
+                    {ord.deliveryAddress ? (
+                      <p className="order-address-preview">📍 {ord.deliveryAddress}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="no-orders-text">No orders placed yet. Add items to your cart to checkout!</p>
+            )}
+          </div>
+        </aside>
+      </div>
+    </main>
+  );
+}
+
+/* =========================================================================
+   MODAL AND HELPER COMPONENTS
+   ========================================================================= */
 function WalletModal({
   onClose,
   onConnect,
@@ -1488,6 +2472,7 @@ function CartDrawer({
   onClose,
   onQuantity,
   onRemove,
+  onProceedToCheckout,
 }: {
   cartLines: { item: CartItem; product: Product }[];
   itemCount: number;
@@ -1496,6 +2481,7 @@ function CartDrawer({
   onClose: () => void;
   onQuantity: (item: CartItem, quantity: number) => void;
   onRemove: (item: CartItem) => void;
+  onProceedToCheckout: () => void;
 }) {
   return (
     <div className="overlay">
@@ -1551,9 +2537,9 @@ function CartDrawer({
             <span>Total</span>
             <strong>{formatMoney(total)}</strong>
           </div>
-          <a className="checkout-button" href="#checkout" onClick={onClose}>
-            Checkout
-          </a>
+          <button className="checkout-button" onClick={onProceedToCheckout}>
+            Proceed to Checkout
+          </button>
         </div>
       </aside>
     </div>
@@ -1613,7 +2599,7 @@ function AuthModal({
             {mode === 'signup' ? (
               <label>
                 Name
-                <input name="name" autoComplete="name" />
+                <input name="name" autoComplete="name" required />
               </label>
             ) : null}
             <label>
