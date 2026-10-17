@@ -125,7 +125,7 @@ const OFFICIAL_WALLET = {
   label: 'Verified Merchant Treasury Vault',
 };
 
-const UPI_ID = '6268385870@ybl';
+const UPI_ID = '6268385870@ibl';
 
 const POPULAR_BANKS = [
   { id: 'sbi', name: 'State Bank of India', short: 'SBI', icon: '🏛️' },
