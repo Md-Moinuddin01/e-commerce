@@ -1,7 +1,6 @@
 # off-thread Commerce
 
 A complete local fashion e-commerce storefront built with React, TypeScript, HTML, CSS, and JavaScript.
-<img width="1920" height="999" alt="off-thread" src="https://github.com/user-attachments/assets/197202b3-7b3f-4110-a871-a6b9f2d6db66" />
 
 ## Features
 
